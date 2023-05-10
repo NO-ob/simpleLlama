@@ -54,7 +54,7 @@ Post JSON to this url to load a model
 
 ## Endpoint /chat - POST
 
-Post JSON to this endpoint to generate text, a model must already be loaded theres currently not error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory
+Post JSON to this endpoint to generate text, a model must already be loaded theres currently no error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory
 
 Response 
 ```
