@@ -1,6 +1,13 @@
 # simpleLlama
 A Simple webserver for generating text with GPTQ-For-Llama, no bloat no bullshit
 
+To get it setup download https://github.com/qwopqwop200/GPTQ-for-LLaMa, follow the setup steps.
+Drop the files from this repo into the GPTQ-For-Llama directory.
+Add a model to the models directory
+install flask with pip. 
+run the server.py file
+
+
 
 
 ## Endpoint /models - GET
