@@ -8,6 +8,10 @@ import torch
 
 from llama_inference import load_quant
 
+#Used in json if &{key} exists in a value it should be replaced with a value from the main json dict such as userName
+mainDictTarget = "&"
+#Used in json if @{key} exists in a value it should be replaced with a value from the character json dict such as charName
+characterDictTarget = "@"
 
 class ModelType(Enum):
     SAFETENSORS = "safetensors"
@@ -47,17 +51,20 @@ class LlamaModelRepo:
     def loadModel(self, llamaModel: LlamaModel):
         self.llamaModel = llamaModel
         self.loadedModel = load_quant(llamaModel.path, llamaModel.path+"/"+llamaModel.modelFile, 4, 128)
-        return 
     
+
+    def getTokens(self, text:str):
+        tokenizer = AutoTokenizer.from_pretrained(self.llamaModel.path, use_fast=False)
+        return tokenizer.encode(text, return_tensors="pt").to(DEV)
+
     def chat(self, text: str, params:dict = {}):
         
         self.loadedModel.to(DEV)
         tokenizer = AutoTokenizer.from_pretrained(self.llamaModel.path, use_fast=False)
-        input_ids = tokenizer.encode(text, return_tensors="pt").to(DEV)
-
+        tokenizedPrompt = self.getTokens(text)
         with torch.no_grad():
             generated_ids = self.loadedModel.generate(
-                input_ids,
+                tokenizedPrompt,
                 do_sample=True,
                 min_length=params.get("min_length",0 ),
                 top_p=params.get("top_p",0.7),
@@ -67,37 +74,77 @@ class LlamaModelRepo:
             )
         return tokenizer.decode([el.item() for el in generated_ids[0]])
     
-        
-    
-    def buildPrompt(self, chatHistory: list, character: dict, modelTemplate: dict):
-        externalRegex = "@{([aA-zZ]*)}"
-        promptRegex = "\${([aA-zZ]*)}"
-        prompt = modelTemplate["prompt"]
-        externalToken = re.findall(externalRegex,prompt)
-        
-        chatTokens = re.findall(promptRegex,prompt)
-        #Make token replacement recursive or something or do it all at the end after building the string
-        for token in chatTokens:
-            if token == "chat":
-                compiledChatHistory = ""
-                for message in chatHistory:
-                    messageStr = ""
-                    if message["chatType"] == "user":
-                        messageStr = modelTemplate["userChatFormat"]
-                        messageStr = messageStr.replace("@{userMessage}", message["message"])
-                        messageStr = messageStr.replace("^{chatTokenUser}", modelTemplate["chatTokenUser"])
-                    elif message["chatType"] == "character":
-                        messageStr = modelTemplate["characterChatFormat"]
-                        messageStr = messageStr.replace("@{characterMessage}", message["message"])
-                        messageStr = messageStr.replace("^{chatTokenCharacter}", modelTemplate["chatTokenCharacter"])
-                        
-                    compiledChatHistory += messageStr
-                prompt = prompt.replace(f"${{chat}}", compiledChatHistory)
 
-        for token in externalToken:
-            if token in character:
-                prompt = prompt.replace(f"@{{{token}}}", character[token])
+    #Replaces token in a string such as replaceToken{charName} with value in the targetDict
+    def replaceTokensInString(self, string: str,  targetDict: dict, replaceToken: str):
+        jsonKeys = re.findall(replaceToken + "{([aA-zZ]*)}",string)
+        for key in jsonKeys:
+            if key in targetDict:
+                replacement = "[" + ",".join(targetDict[key]) + "]" if isinstance(targetDict[key], list) else targetDict[key]
+                string = string.replace(f"{replaceToken}{{{key}}}", replacement)
             else:
-                prompt = prompt.replace(f"@{{{token}}}", "")        
+                string = string.replace(f"{replaceToken}{{{key}}}", "") 
+        
+        jsonKeys = re.findall(replaceToken + "{([aA-zZ]*)}",string)
+        if jsonKeys:
+            return self.replaceTokensInString(string=string, targetDict=targetDict, replaceToken=replaceToken)
+        return string
+    
+    #Replaces characters token in a string such as @{charName} with charName in the character map
+    def replaceCharacterTokensInString(self, string: str, chatJSON: dict):
+        return self.replaceTokensInString(string=string, replaceToken=characterDictTarget,targetDict=chatJSON["character"],)
+    
+    #Replaces main token in a string such as &{userName} with userName in the main json blob
+    def replaceMainTokensInString(self, string: str, chatJSON: dict):
+        return self.replaceTokensInString(string=string, replaceToken=mainDictTarget,targetDict=chatJSON)
 
-        return(prompt)
+
+    def buildMessage(self, chatJSON: dict, message: dict):
+
+        #Try catch this and thow an exception then return error http response
+        messageStr = chatJSON["promptTemplate"].get(message["chatType"],"")
+        #Replace tokens from main json blob such as the userName
+        messageStr = self.replaceCharacterTokensInString(string=messageStr, chatJSON=chatJSON)
+        #Replace tokens from character json blob such as the userName
+        messageStr = self.replaceMainTokensInString(string=messageStr, chatJSON=chatJSON)
+
+        return messageStr.replace("${message}", message["message"])
+
+    def buildMessagesUntilMaxTokenCount(self, messages: list,  chatJSON:dict, currentTokenCount: int = 0,):
+        maxTokens = self.loadedModel.config.max_position_embeddings
+        wantedNewTokens = chatJSON["genParams"].get("max_new_tokens",512)
+
+        messageStrings = []
+        while messages:
+            messageString = self.buildMessage(message = messages.pop(), chatJSON=chatJSON)
+            currentTokenCount += len(self.getTokens(messageString)[0])
+            if (currentTokenCount <= (maxTokens - wantedNewTokens)):
+                print(f"Added Message token count is: {currentTokenCount}")
+                messageStrings.append(messageString)
+            else:
+                print(f"Token count hit breaking count: ${currentTokenCount}, max: ${maxTokens}, wantedTokens: ${wantedNewTokens}")
+                break
+        return messageStrings        
+
+
+    def buildPrompt(self, chatJSON: dict):
+        prompt = self.replaceCharacterTokensInString(string=chatJSON["promptTemplate"]["prompt"],  chatJSON=chatJSON)
+
+        tokenCount = len(self.getTokens(prompt)[0])
+
+        print(f"Token after building prompt = {tokenCount}")
+        chatExampleStrings = self.buildMessagesUntilMaxTokenCount(messages=chatJSON["character"].get("chatExample",[]), chatJSON=chatJSON, currentTokenCount=tokenCount)
+        chatExampleStrings.reverse()
+        prompt = prompt.replace("${chatExample}", ''.join(chatExampleStrings))
+
+
+        tokenCount = len(self.getTokens(prompt)[0])
+
+        print(f"Token after building example = {tokenCount}")
+
+        chatHistoryStrings = self.buildMessagesUntilMaxTokenCount(messages=chatJSON.get("chatHistory",[]), chatJSON=chatJSON, currentTokenCount=tokenCount)
+        chatHistoryStrings.reverse()
+        prompt = prompt.replace("${chat}", ''.join(chatHistoryStrings))
+
+        
+        return prompt + chatJSON["character"]["charName"] + ":"

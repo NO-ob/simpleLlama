@@ -1,14 +1,90 @@
 
+from copy import deepcopy
 import json
-from flask import Flask, request
+from flask import Flask, g, request
 from repos.model_repo import LlamaModel, LlamaModelRepo
-
- 
+from flask_expects_json import expects_json
+import schema
 app = Flask(__name__)
 
 modelRepo = LlamaModelRepo()
 llamaModel = None
 model = None
+
+
+emotionsPromptTemplate = { 
+    "firstUser": "User1",
+    "secondUser": "User2",
+    "genParams": {
+        "min_length": 0,
+        "max_length":1000,
+        "top_p":0.7,
+        "temperature":0.44,
+        "repetition_penalty":1.6,
+        "max_new_tokens": 5
+    },
+    "character": {
+    "charName": "EmotionEngine",
+    "persona": "EmotionEngine will listen to messages between two users and describe the facial expression of the last user using one of these values: @{emotions}. EmotionEngine must always return one of the values from the previous list based on how it thinks the last user is feeling. EmotionEngine is an computer system designed to understand how a user is feeling based on their cummunication with another user. EmotionEngine will always respond with the appropriate expression from the previously mentioned list. If EmotionEngine doesn't know the correct expression it will say 'unkown'\n", 
+    "emotions": [],
+    "chatExample": [
+        {
+            "chatType": "user1",
+            "message": "H-hi My name is Braixen! I'm going to be moving in with you today I-i hope we can get along"
+        },
+        {
+            "chatType": "user2",
+            "message": "*I gesture her to come in* Hello welcome your room will be upstairs on the left side"
+        },
+        {
+            "chatType": "user1",
+            "message": "N-nice to meet you. Th-thank you for taking me in"
+        },
+        {
+            "chatType": "system",
+            "message": "happy"
+        },
+        {
+            "chatType": "user1",
+            "message": "*Braixen wags her tail* Okay thankyou. Th-thankyou for everything"
+        },
+        {
+            "chatType": "user2",
+            "message": "God youre so hot cutie"
+        },
+        {
+            "chatType": "user1",
+            "message": "*braixen turns around and barks at him* Dont call me that!"
+        },
+        {
+            "chatType": "system",
+            "message": "angry"
+        },
+        {
+            "chatType": "user1",
+            "message": "Okay sorry i will not say it again"
+        },
+        {
+            "chatType": "user2",
+            "message": "Great, thankyou!"
+        },
+        {
+            "chatType": "system",
+            "message": "normal"
+        },
+    ]
+},
+"promptTemplate": {
+    "prompt": "@{persona} \n @{instructions} \n\n<START> \n ${chatExample}${chat}",
+    "system": "@{charName}: ${message} \n",
+    "user1": "&{firstUser}: ${message} \n",
+    "user2": "&{secondUser}: ${message} \n",
+    
+},
+"chatHistory": []
+    
+}
+
 
 
 @app.route('/models', methods=['GET'])
@@ -22,41 +98,79 @@ def load_model():
     modelRepo.loadModel(LlamaModel(json['path'],json['modelFile']))
     return {'':''}
 
+
+
 @app.route('/chat', methods=['POST'])
+@expects_json(schema.chatSchema)
 def chat():
-    json = request.get_json()
+    respjson = g.data
+    
+    print("Got chat hist ===============================================")
+    print(respjson["chatHistory"])
+    print("==================================================================")
+
+
+    username = respjson["userName"]
+    charname = respjson["character"]["charName"]
+
     
 
-    #Add validation for request json, character, prompt etc
+    prompt = modelRepo.buildPrompt(deepcopy(respjson))
+    print("Got Prompt ===============================================")
+    print(prompt)
+    print("==================================================================")
+
     
-    prompt = modelRepo.buildPrompt(chatHistory=json["chat_history"],character=json["character"], modelTemplate=json["prompt_template"])
-    resp = modelRepo.chat(prompt,json["gen_params"])
-    username = json["userName"]
-    charname = json["charName"]
-    return {"message" : resp.replace(prompt,"").split(f"{username}:")[0].replace(f"{charname}:","").replace("<s>","").replace(r"</s>","").replace("<END>","").lstrip().rstrip()}
+    chatOutput = modelRepo.chat(prompt,respjson["genParams"])
+    chatOutput = chatOutput.replace(prompt,"").split(f"{username}:")[0].replace(f"{charname}:","").replace("<s>","").replace("</s>","").replace("<END>","").lstrip().rstrip()
 
-@app.route('/buildPrompt', methods=['get'])
-def build_prompt():
-    chatHistory = None
-    character = None
-    modelTemplate = None
+    print("Got Chat ===============================================")
+    print(chatOutput)
+    print("==================================================================")
 
-    with open('prompts/chatHist.json') as json_file:
-        print("opening chathist")
-        chatHistory = json.load(json_file)
+    emotion = None
+    responseDict = {"message" : chatOutput}
 
-    with open('prompts/pygmalion.json') as json_file:
-        print("opening pygmalion")
-        modelTemplate = json.load(json_file) 
+    if respjson["character"]["emotions"]:
+        print("Getting emotion for ===============================================")
+        print(respjson["character"]["emotions"])
+        print("==================================================================")
 
-    with open('prompts/dawn.json') as json_file:
-        print("opening dawn")
-        character = json.load(json_file)    
-       
-    
-    modelRepo.buildPrompt(chatHistory=chatHistory, modelTemplate=modelTemplate, character=character)
+        emotionsPrompt = deepcopy(emotionsPromptTemplate)
+        print("==================================================================")
+        print(emotionsPrompt)
+        print("==================================================================")
+    emotionsPrompt["chatHistory"] = respjson["chatHistory"] if len(respjson["chatHistory"]) < 5 else respjson["chatHistory"][-4:]
+    isFirst = True
+    for message in reversed(emotionsPrompt["chatHistory"]):
+        if isFirst:
+            message["chatType"] = "user1"
+            isFirst = False
+        else:
+            message["chatType"] = "user2"
+            isFirst = True
 
-    return {"prompt": modelRepo.buildChatString(chatHistory=chatHistory, modelTemplate=modelTemplate, character=character)}
+    emotionsPrompt["chatHistory"].append({
+        "chatType": "user2",
+        "message": chatOutput
+    })
+
+    emotionsPrompt["character"]["emotions"] = respjson["character"]["emotions"]
+    emotionPrompt = modelRepo.buildPrompt(emotionsPrompt)
+
+    print("Emotion prompt ===============================================")
+    print(emotionPrompt)
+    print("==================================================================")
+
+    emotion = modelRepo.chat(emotionPrompt).replace(emotionPrompt, "").replace("<s>","").replace("</s>","").replace("<END>","").lstrip().rstrip()
+
+    if emotion:
+        responseDict["emotion"] = emotion
+
+    print("Returning ===============================================")
+    print(responseDict)
+    print("==================================================================")
+    return responseDict
     
 # main driver function
 if __name__ == '__main__':
