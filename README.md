@@ -54,7 +54,9 @@ Post JSON to this url to load a model
 
 ## Endpoint /chat - POST
 
-Post JSON to this endpoint to generate text, a model must already be loaded theres currently no error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory. If the posted json has a list of emotions in the character prompt those will be used on a second text gen with a built in prompt to generate and emotion based on the last few messages in the chat
+Post JSON to this endpoint to generate text, a model must already be loaded theres currently no error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory. If the posted json has a list of emotions in the character prompt those will be used on a second text gen with a built in prompt to generate and emotion based on the last few messages in the chat.
+
+The chat endpoint can take your full list of messages in the chat history field the message chain is built by adding the messages from the characters chatExample and the chatHsitory messages. The amount of messages added depends on the token limitof the model it will add them until the token count is the (models max tokens - max_new_tokens) from the genParams
 
 Response 
 ```
