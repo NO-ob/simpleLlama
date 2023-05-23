@@ -54,12 +54,13 @@ Post JSON to this url to load a model
 
 ## Endpoint /chat - POST
 
-Post JSON to this endpoint to generate text, a model must already be loaded theres currently no error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory
+Post JSON to this endpoint to generate text, a model must already be loaded theres currently no error handling. A trimmed output will be returned which should only be the last message in the prompt. An example json file is in the prompts directory. If the posted json has a list of emotions in the character prompt those will be used on a second text gen with a built in prompt to generate and emotion based on the last few messages in the chat
 
 Response 
 ```
 {
-    "message": "Ok well firstly I am an expert trainer who specializes in training Pokémon. I train Pokémon everyday and make sure they stay healthy and happy. I also take part in many competitions such as battles and shows. I try to win each time and become number one!"
+    "message": "Ok well firstly I am an expert trainer who specializes in training Pokémon. I train Pokémon everyday and make sure they stay healthy and happy. I also take part in many competitions such as battles and shows. I try to win each time and become number one!",
+    "emotion": "happy"
 }
 ```
 
