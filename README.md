@@ -7,14 +7,12 @@ Drop the files from this repo into the GPTQ-For-Llama directory.
 
 Add a model to the models directory
 
-install flask with pip. 
+install flask and flask_expects_json with pip. 
 
 run the server.py file
 
 
-You can make a discord bot to use as a frontend quite easily I have added the functionality to my bot here https://gist.github.com/NO-ob/498e86889a4945b508dce86f5b451b5e 
-
-At lines 207-211 it checks if its been mentioned, if the bot has been mentioned it will build a reply chain of messages and add them to the prompt template. it will then send those to the server and post the response as a reply to the discord message
+I created a discord bot as an example project for the server, When mentioned it will respond. if you want to continue a conversation you must reply to the messages instead of just mentioning. If you have restarted the server and a reply chain has been going a while it will take a long time to build the reply chain the first time as message retreival is fairly slow. they are cached in memory once fetched so it will get faster for subsequent messages  https://gist.github.com/NO-ob/3ca286a68659a0fcf7aca829e2605f00
 
 ## Endpoint /models - GET
 
