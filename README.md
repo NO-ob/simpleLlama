@@ -1,9 +1,9 @@
 # simpleLlama
 A Simple webserver for generating text with GPTQ-For-Llama, no bloat no bullshit
 
-To get it setup download https://github.com/qwopqwop200/GPTQ-for-LLaMa, follow the setup steps.
+To get it setup download https://github.com/turboderp/exllama, follow the setup steps.
 
-Drop the files from this repo into the GPTQ-For-Llama directory.
+Drop the files from this repo into the exllama directory.
 
 Add a model to the models directory
 
@@ -59,8 +59,8 @@ The chat endpoint can take your full list of messages in the chat history field 
 Response 
 ```
 {
-    "message": "Ok well firstly I am an expert trainer who specializes in training Pokémon. I train Pokémon everyday and make sure they stay healthy and happy. I also take part in many competitions such as battles and shows. I try to win each time and become number one!",
-    "emotion": "happy"
+    "emotion": "happy",
+    "message": "I'm doing great, thanks for asking! Just excited to share my love of Pokémon with everyone. How about you?"
 }
 ```
 

@@ -1,12 +1,17 @@
 {
     "userName": "Anon",
     "genParams": {
-        "min_length": 0,
         "max_length": 1000,
         "top_p": 0.7,
+        "min_p": 0.0,
+        "top_k": 20,
         "temperature": 0.44,
-        "repetition_penalty": 1.2,
-        "max_new_tokens": 200
+        "repetition_penalty_max": 1.2,
+        "repetition_penalty_sustain": 128,
+        "repetition_penalty_decay": 256,
+        "max_new_tokens": 200,
+        "beams": 1,
+        "beam_length": 1
     },
     "character": {
         "charName": "Dawn",
