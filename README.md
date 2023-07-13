@@ -1,5 +1,5 @@
 # simpleLlama
-A Simple webserver for generating text with GPTQ-For-Llama, no bloat no bullshit
+A Simple webserver for generating text with exllama, no bloat no bullshit
 
 To get it setup download https://github.com/turboderp/exllama, follow the setup steps.
 
