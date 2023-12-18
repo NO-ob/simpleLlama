@@ -20,7 +20,7 @@ emotionsPromptTemplate = {
         "max_length": 1000,
         "top_p": 0.7,
         "temperature": 0.44,
-        "repetition_penalty": 1.6,
+        "token_repetition_penalty": 1.6,
         "max_new_tokens": 5
     },
     "character": {
@@ -121,7 +121,7 @@ def chat():
 
     chatOutput = modelRepo.chat(prompt, respjson["genParams"])
     chatOutput = chatOutput.replace(prompt, "").split(f"{username}:")[0].replace(
-        f"{charname}:", "").replace("<s>", "").replace("</s>", "").replace("<END>", "").lstrip().rstrip()
+        f"{charname}:", "").replace("<s>", "").replace("</s>", "").replace("<END>", "").replace("###", "").replace("<|im_end|>", "").replace("<|im_start|>", "").lstrip().rstrip()
 
     print("Got Chat ===============================================")
     print(chatOutput)
@@ -179,4 +179,4 @@ def chat():
 if __name__ == '__main__':
     # run() method of Flask class runs the application
     # on the local development server.
-    app.run(debug=True)
+    app.run(debug=True, host="SETME")

@@ -26,24 +26,18 @@ chatSchema = {
                 "temperature": {
                     "type": "number"
                 },
-                "token_repetition_penalty_max": {
+                "token_repetition_penalty": {
                     "type": "number"
                 },
-                "token_repetition_penalty_sustain": {
+                "token_repetition_range": {
                     "type": "integer"
                 },
-                "token_repetition_penalty_decay": {
+                "token_repetition_decay": {
                     "type": "integer"
                 },
                 "max_new_tokens": {
                     "type": "integer"
                 },
-                "beams": {
-                    "type": "integer"
-                },
-                "beam_length": {
-                    "type": "integer"
-                }
             },
             "required": [
                 "max_new_tokens"

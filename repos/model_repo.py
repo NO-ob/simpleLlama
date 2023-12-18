@@ -1,17 +1,32 @@
+import sys
+
+from exllamav2.generator.sampler import ExLlamaV2Sampler
+sys.path.append("..")
+
+from exllamav2 import (
+    ExLlamaV2,
+    ExLlamaV2Config,
+    ExLlamaV2Cache,
+    ExLlamaV2Tokenizer,
+)
+from exllamav2.generator import (
+    ExLlamaV2BaseGenerator,
+)
+
 from enum import Enum
 from genericpath import exists
+import json
 import os
 import re
-
 import torch
-from model import ExLlama, ExLlamaCache, ExLlamaConfig
-from tokenizer import ExLlamaTokenizer
-from generator import ExLlamaGenerator
+
 
 # Used in json if &{key} exists in a value it should be replaced with a value from the main json dict such as userName
 mainDictTarget = "&"
 # Used in json if @{key} exists in a value it should be replaced with a value from the character json dict such as charName
 characterDictTarget = "@"
+
+modelsDirectory = './models'
 
 
 class ModelType(Enum):
@@ -30,17 +45,30 @@ class LlamaModel(dict):
         self.modelFile = modelFile
         self.modelType = ModelType(modelFile[modelFile.rfind(".") + 1:])
 
+    def writelastLoaded(self):
+        with open(f"{modelsDirectory}/lastModel.json", "w") as file:
+            json.dump({"modelFile": self.modelFile, "path": self.path}, file)
+
 
 class LlamaModelRepo:
-    tokenizer: ExLlamaTokenizer = None
-    generator: ExLlamaGenerator = None
-    config: ExLlamaConfig = None
-    model: ExLlama = None
-    cache: ExLlamaCache = None
+    tokenizer: ExLlamaV2Tokenizer = None
+    generator: ExLlamaV2BaseGenerator = None
+    config: ExLlamaV2Config = None
+    model: ExLlamaV2 = None
+    cache: ExLlamaV2Cache = None
 
     def __init__(self):
         self.models: list = []
-        self.modelsDir: str = './models'
+        self.modelsDir: str = modelsDirectory
+        if os.path.isfile(f"{modelsDirectory}/lastModel.json"):
+            with open(f"{modelsDirectory}/lastModel.json", "r") as file:
+                lastModel = json.load(file)
+                if {"path", "modelFile"} <= lastModel.keys():
+                    try:
+                        self.loadModel(LlamaModel(
+                            path=lastModel["path"], modelFile=lastModel["modelFile"]))
+                    except Exception as e:
+                        print(str(e))
 
     def getModelsFromSubDir(self, path: str):
         models: list = []
@@ -60,54 +88,48 @@ class LlamaModelRepo:
 
     def loadModel(self, llamaModel: LlamaModel):
         errors = []
-        configPath = llamaModel.path + "/config.json"
-        if (not exists(configPath)):
-            errors.append(f"{configPath} does not exist")
 
-        modelPath = llamaModel.path + "/" + llamaModel.modelFile
+        modelPath = llamaModel.path 
         if (not exists(modelPath)):
             errors.append(f"{modelPath} does not exist")
-
-        tokenizerModelPath = llamaModel.path + "/tokenizer.model"
-        if (not exists(tokenizerModelPath)):
-            errors.append(f"{tokenizerModelPath} does not exist")
 
         if errors:
             raise Exception("\n".join(errors))
 
-        torch.set_grad_enabled(False)
-        torch.cuda._lazy_init()
-        self.config = ExLlamaConfig(configPath)
-        self.config.model_path = modelPath
-        self.model = ExLlama(self.config)
-        self.cache = ExLlamaCache(self.model)
-        self.tokenizer = ExLlamaTokenizer(tokenizerModelPath)
-        self.generator = ExLlamaGenerator(
-            self.model, self.tokenizer, self.cache)
+        self.config = ExLlamaV2Config()
+        self.config.model_dir = modelPath
+        self.config.prepare()
+        self.model = ExLlamaV2(self.config)
+        self.cache = ExLlamaV2Cache(self.model, lazy=True)
+        self.model.load_autosplit(self.cache)
+        self.tokenizer = ExLlamaV2Tokenizer(self.config)
+        self.generator = ExLlamaV2BaseGenerator(
+            self.model, self.cache,self.tokenizer)
+        llamaModel.writelastLoaded()
+        print(f"model loaded {llamaModel.path}")
 
     def getTokens(self, text: str):
         return self.tokenizer.encode(text=text)
 
     def chat(self, text: str, params: dict = {}):
-        self.generator.settings.top_p = params.get("top_p", 0.65)
-        self.generator.settings.top_k = params.get("top_k", 20)
-        self.generator.settings.temperature = params.get("temperature", 0.44)
-        self.generator.settings.token_repetition_penalty_max = params.get(
-            "token_repetition_penalty_max", 1.15)
-        self.generator.settings.token_repetition_penalty_sustain = params.get(
-            "token_repetition_penalty_sustain", 256)
-        self.generator.settings.token_repetition_penalty_decay = params.get(
-            "token_repetition_penalty_decay", 128)
-        self.generator.settings.min_p = params.get(
+        settings = ExLlamaV2Sampler.Settings()
+        
+        settings.top_p = params.get("top_p", 0.8)
+        settings.top_k = params.get("top_k", 50)
+        settings.temperature = params.get("temperature", 0.8)
+        settings.token_repetition_penalty = params.get(
+            "token_repetition_penalty", 1.05)
+        settings.token_repetition_range = params.get(
+            "token_repetition_range", -1)
+        settings.token_repetition_decay = params.get(
+            "token_repetition_decay", 0)
+        settings.min_p = params.get(
             "min_p", 0.0)
-        self.generator.settings.beams = params.get(
-            "beams", 1)
-        self.generator.settings.beam_length = params.get(
-            "beam_length", 1)
-        print(self.generator.settings.token_repetition_penalty_max)
-        with torch.no_grad():
-            text = self.generator.generate_simple(
-                text, max_new_tokens=params.get("max_new_tokens", 2000))
+        print(settings.token_repetition_penalty)
+     
+        self.generator.warmup()
+        text = self.generator.generate_simple(
+            text, settings, params.get("max_new_tokens", 2000))
         return text
 
     # Replaces token in a string such as replaceToken{charName} with value in the targetDict
