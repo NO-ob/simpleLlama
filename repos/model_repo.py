@@ -129,7 +129,7 @@ class LlamaModelRepo:
      
         self.generator.warmup()
         text = self.generator.generate_simple(
-            text, settings, params.get("max_new_tokens", 2000))
+            text, settings, params.get("max_new_tokens", 512))
         return text
 
     # Replaces token in a string such as replaceToken{charName} with value in the targetDict

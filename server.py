@@ -120,7 +120,14 @@ def chat():
     print("==================================================================")
 
     chatOutput = modelRepo.chat(prompt, respjson["genParams"])
-    chatOutput = chatOutput.replace(prompt, "").split(f"{username}:")[0].replace(
+    chatOutput = chatOutput.replace(prompt, "")
+    print("Raw chat output no prompt ===============================================")
+    print(chatOutput)
+    print("==================================================================")
+    if (f"{username}:" in chatOutput):
+        chatOutput = chatOutput.split(f"{username}:")[0]
+
+    chatOutput = chatOutput.replace(
         f"{charname}:", "").replace("<s>", "").replace("</s>", "").replace("<END>", "").replace("###", "").replace("<|im_end|>", "").replace("<|im_start|>", "").lstrip().rstrip()
 
     print("Got Chat ===============================================")
