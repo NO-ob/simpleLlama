@@ -193,6 +193,10 @@ class LlamaModelRepo:
         prompt = self.replaceCharacterTokensInString(
             string=chatJSON["promptTemplate"]["prompt"],  chatJSON=chatJSON)
 
+        # Replace tokens from main json blob such as the userName
+        prompt = self.replaceMainTokensInString(
+            string=prompt, chatJSON=chatJSON)
+
         tokenCount = len(self.getTokens(prompt)[0])
 
         print(f"Token after building prompt = {tokenCount}")
