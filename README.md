@@ -1,9 +1,9 @@
 # simpleLlama
 A Simple webserver for generating text with exllama, no bloat no bullshit
 
-To get it setup download https://github.com/turboderp/exllama, follow the setup steps.
+To get it setup download [https://github.com/turboderp/exllama](https://github.com/turboderp/exllamav2), follow the setup steps.
 
-Drop the files from this repo into the exllama directory.
+Drop the files from this repo into the exllamav2 directory.
 
 Add a model to the models directory
 
